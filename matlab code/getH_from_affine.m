@@ -1,6 +1,6 @@
 function H = getH_from_affine(ls,ms)
-%GETH_FROM_AFFINE Computes H through least square approximation starting from an
-%   affinity
+%GETH_FROM_AFFINE Computes H through least square approximation starting from
+%an affinity
 % H is the reconstruction matrix that brings the affinity to an euclidean
 % reconstruction
 % The affine hypothesis is important since the last row is made of 0s.

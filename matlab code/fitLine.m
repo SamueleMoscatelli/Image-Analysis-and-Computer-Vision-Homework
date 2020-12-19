@@ -1,5 +1,6 @@
 function line = fitLine(points,perp_distance)
-%FITLINE Returns the line common to all points using LSA
+%FITLINE Returns the line common to all points using Least Squares
+%Approximation
 %   points is a matrix 3*n containing all points
 % if perp distance is true minimize the perpendicular distance (total LS), 
 % minimize the vertical distance (normal LS).

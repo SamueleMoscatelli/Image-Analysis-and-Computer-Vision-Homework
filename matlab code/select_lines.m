@@ -9,12 +9,6 @@ function [line_ind, lines_out] = select_lines(lines,img, text, auto_selection, l
 % closest point to the line
 %x={\frac  {b(bx_{0}-ay_{0})-ac}{a^{2}+b^{2}}}{\text{ and }}y={\frac  {a(-bx_{0}+ay_{0})-bc}{a^{2}+b^{2}}}.
 
-% global variables used in other functions
-global LINES_LONG_LEFT LINES_LONG_RIGHT LINES_SHORT_LEFT ...
-       LINES_SHORT_RIGHT LINES_OTHER LINES_VERTICAL ...
-       LINES_LEFT_ORDERED LINES_RIGHT_TWO ...
-       LINES_VERTICAL_LEFT LINES_VERTICAL_RIGHT
-
    
 % get lines for selecting
 % all the indices
@@ -24,26 +18,18 @@ L = getLineMatrix(lines, indices);
 % hardcoded lines for automatic selection
 if (auto_selection)
     switch line_group
-        case LINES_LONG_LEFT
+        case 1
             line_indices = [13 12 7];
-        case LINES_LONG_RIGHT
+        case 2
             line_indices = [1 10 4 17];
-        case LINES_SHORT_LEFT
+        case 3
             line_indices = [15 11];
-        case LINES_SHORT_RIGHT
+        case 4
             line_indices = [16];
-        case LINES_OTHER
+        case 5
             line_indices = [2 14];
-        case LINES_VERTICAL
+        case 6
             line_indices = [5 14 2 9];
-%         case LINES_LEFT_ORDERED
-%             line_indices = [1 55 15 18];
-%         case LINES_RIGHT_TWO
-%             line_indices = [72 76];
-%         case LINES_VERTICAL_LEFT
-%             line_indices = [6 15 74 12];
-%         case LINES_VERTICAL_RIGHT
-%             line_indices = [35 76 73 30];
     end
 else
     plot_lines(lines, img);

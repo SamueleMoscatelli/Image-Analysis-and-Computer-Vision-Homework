@@ -6,7 +6,7 @@ Ls = zeros(3, size(indices,2));
 
 for ii = 1:size(indices,2)
     % compute already transformed lines
-    Ls(:, ii) = getHomogeneousLine(lines(indices(ii)).point1, lines(indices(ii)).point2);
+    Ls(:, ii) = getLine(lines(indices(ii)).point1, lines(indices(ii)).point2);
 end
 L = Ls;
 end

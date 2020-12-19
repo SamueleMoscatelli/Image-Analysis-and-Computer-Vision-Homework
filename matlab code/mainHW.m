@@ -6,26 +6,6 @@ close all
 debug = false;
 % if true constant selection of lines, if false manual selection
 auto_selection = true; 
-
-% definition of global variables
-global LINES_LONG_LEFT LINES_LONG_RIGHT LINES_SHORT_LEFT ...
-       LINES_SHORT_RIGHT LINES_OTHER LINES_VERTICAL ...
-       LINES_LEFT_ORDERED LINES_RIGHT_TWO LINES_VERTICAL_LEFT ...
-       LINES_VERTICAL_RIGHT
-
-% declaration of global variables to constantly select lines when 
-% the variable auto_selection is true
-LINES_LONG_LEFT = 1;
-LINES_LONG_RIGHT = 2;
-LINES_SHORT_LEFT = 3;
-LINES_SHORT_RIGHT = 4;
-LINES_OTHER = 5;
-LINES_VERTICAL = 6;
-LINES_LEFT_ORDERED = 7;
-LINES_RIGHT_TWO = 8;
-LINES_VERTICAL_LEFT = 9;
-LINES_VERTICAL_RIGHT = 10;
-
 %% Load the image 
 im_rgb = imread('CastelloDiMiramare.jpg');
 
@@ -35,6 +15,7 @@ if debug
     figure, imshow(im_rgb);
 end
 %% Extract the lines
+% compute edges
 edgs1 = compute_edges(im_rgb,1);
 edgs2 = compute_edges(im_rgb,2);
 edgs3 = compute_edges(im_rgb,3);
@@ -56,7 +37,7 @@ lines8 = computeLines(edgs8, 0, 2);
 lines = [lines1, lines2, lines3, lines4, lines5, lines6(8), lines7(5), lines7(2), lines7(1), lines8];
 
 % Create a plot that displays the original image with the 
-% lines superimposed on it.
+% lines superimposed on it
 if debug
     figure, imshow(im_rgb), hold on
     max_len = 0;
@@ -70,29 +51,42 @@ if debug
     end
 end
 %% Corner detection
+% put image in gray scale
 I = rgb2gray(im2double(im_rgb))./255;
-corners = detectHarrisFeatures(I);
+% Harris detection
+corners = detectHarrisFeatures(I,'MinQuality',0.1,'FilterSize', 3, 'ROI', [1,1000,3967,800]);
 
-if debug
-    figure, imshow(im_rgb); hold on;
-    plot(corners.selectStrongest(500));
-    hold off
-end
+% create a plot that displays the original image with the 
+% corners superimposed on it
+figure, imshow(im_rgb); hold on;
+plot(corners.selectStrongest(500));
+hold off
+
 %% Straight lines selection
 % Extract parallel lines
-[line_ind_l1, lines_l1] = select_lines(lines,im_rgb,"Select the group of long parallel lines on the left part of the plane",auto_selection,LINES_LONG_LEFT);
-[line_ind_l2, lines_l2] = select_lines(lines,im_rgb,"Select another group of parallel lines on the left part of the plane (orthogonal to the one selected before)", auto_selection, LINES_SHORT_LEFT);
-[line_ind_r1, lines_r1] = select_lines(lines,im_rgb,"Select the group of long parallel lines on the right part of the plane (keep the order of the first selection)", auto_selection, LINES_LONG_RIGHT);
-[line_ind_r2, lines_r2] = select_lines(lines,im_rgb,"Select another group of parallel lines on the right part of the plane (orthogonal to the one selected before)", auto_selection, LINES_SHORT_RIGHT);
-[line_ind_other, lines_other] = select_lines(lines,im_rgb,"Select another group of parallel lines parallel to plane pi", auto_selection, LINES_OTHER);
 
-% plot selected lines
+% extraction of the lines parallel to the left part ot the plane 
+[line_ind_l1, lines_l1] = select_lines(lines,im_rgb,"Select the group of long parallel lines on the left part of the plane",auto_selection,1);
+
+% extraction of the lines perpendicular to the previous lines 
+[line_ind_l2, lines_l2] = select_lines(lines,im_rgb,"Select another group of parallel lines on the left part of the plane (orthogonal to the one selected before)", auto_selection, 3);
+
+% extraction of the lines parallel to the right part ot the plane 
+[line_ind_r1, lines_r1] = select_lines(lines,im_rgb,"Select the group of long parallel lines on the right part of the plane (keep the order of the first selection)", auto_selection, 2);
+
+% extraction of the lines perpendicular to the previous lines 
+[line_ind_r2, lines_r2] = select_lines(lines,im_rgb,"Select another group of parallel lines on the right part of the plane (orthogonal to the one selected before)", auto_selection, 4);
+
+% extraction of other lines parallel to the plane
+[line_ind_other, lines_other] = select_lines(lines,im_rgb,"Select another group of parallel lines parallel to plane pi", auto_selection, 5);
+
+% plot the selected lines
 line_ind = [line_ind_l1, line_ind_l2, line_ind_r1, line_ind_r2];
 plot_lines(lines(1,line_ind), im_rgb);
 
 %% Vanishing points extraction and line at infinity fitting
 % compute vanishing point of directions in the horizontal plane
-% then fit the line through these points
+% then fit the line at infinity through these points
 
 % get vanishing points
 vp_l1 = getVp(lines_l1);
@@ -101,30 +95,26 @@ vp_r1 = getVp(lines_r1);
 vp_r2 = getVp(lines_r2);
 vp_other = getVp(lines_other);
 
-% fit the line through these points
+% fit the line at infinity through these points
 l_inf_prime = fitLine([vp_l1 vp_l2 vp_r1 vp_r2 vp_other],false);
 
 %% Affine rectification
-% - compute affine reconstruction
-% l_inf -> l_inf (the line at infinity must be mapped to itself)
-% H_r_aff = [1  0  0
-%            0  1  0
-%            l1 l2 l3] where the last row is l_inf'
-
+% compute the affine reconstruction matrix
 H_r_aff = [1 0 0; 0 1 0; l_inf_prime(1) l_inf_prime(2) l_inf_prime(3)];
 
-% Transform the image and shows it
+% apply affine rectification matrix to the image and show it
 img_affine = transform_and_show(H_r_aff, im_rgb, "Affine rectification");
 
 %% Metric rectification (1)
-% Computation of two pairs of perpendicular lines
+% computation of two pairs of perpendicular lines
 perpLines = [createLinePairsFromTwoSets(lines_l1, lines_l2), createLinePairsFromTwoSets(lines_r1, lines_r2)];
 
-% transform lines according to H_r_aff 
+% transform lines according to the affine rectification matrix
 perpLines = transformLines(H_r_aff, perpLines);
 
 %% Metric rectification (2)
-% computation of H through linear regression
+% computation of the matrix of the transformation from affine rectification
+% to euclidean reconstruction through linear regression
 ls = [];
 ms = [];
 index = 1;
@@ -137,11 +127,10 @@ end
 % fit the transformation from affinity to euclidean
 H_a_e = getH_from_affine(ls,ms);
 
-%% Metric rectification (3)
 % Application of the transformation and image showing
 transform_and_show(H_a_e, img_affine, "Euclidean Reconstruction");
 
-%% Metric rectification (4)
+%% Metric rectification (3)
 % Flip the image along the x axis
 angle = 180;
 R = rotx(deg2rad(180));
@@ -155,39 +144,31 @@ out_e = transform_and_show(H_r, im_rgb, "Euclidean Reconstruction");
 
 %% Camera calibration (1)
 
-% (i.e., determine the calibration matrix K) assuming it is zero-skew 
-% (but not assuming it is natural).
-% use the image of vertical lines and intersect the vertical vanishing point
-% with the line at inf on the horizontal plane, use also the ortogonality 
-% of vp on the vertical faces, use also the homography method
-% Normalize all using H_scaling that brings one component in the range
-% [0,1] while the other in the range [0, aspect_ratio].
-
-% find [l_inf]
-% use l_inf_prime for two constraints
-% This is the scaling matrix that must be applied for normalization.
+% computation of the normalization matrix
 H_scaling = diag([1/IMG_MAX_SIZE, 1/IMG_MAX_SIZE, 1]);
+
+% normalization of the line at infinity
 l_infs = H_scaling.' \ l_inf_prime;
 
-% compute vanishing point of vertical direction of vertical planes
-[line_ind_vert, lines_vertical] = select_lines(lines,im_rgb,"Select vertical parallel lines", auto_selection, LINES_VERTICAL);
+% select the vertical lines
+[line_ind_vert, lines_vertical] = select_lines(lines,im_rgb,"Select vertical parallel lines", auto_selection, 6);
 
-% plot all lines selected
+% plot all the selected lines
 if debug
     line_ind = [line_ind, line_ind_vert];
     plot_lines(lines(1,line_ind), im_rgb);
 end
 
-% get vertical vanishing point
+% get the vertical vanishing point
 vp_vertical = H_scaling * getVp(lines_vertical);
 
 % get the vanishing point of other lines on the plane
-vp_other = H_scaling * getVp(lines_other);
+%vp_other = H_scaling * getVp(lines_other);
 
 %% Camera calibration (2)
 
 % computation of the image of the absolute conic 
-% using L_inf, vertical vp and homography
+% using l_inf, vertical vp and homography
 IAC = get_IAC(l_infs, vp_vertical, [], [], H_scaling/H_r);
 
 % get the intrinsic parameters
@@ -211,55 +192,54 @@ v0 = K(2,3);
 alfa = fx/fy;
 
 %% Metric measurements functional to camera localization
-
+% get the liles correspondig to the four sides of the reference rectangle
 line_hor_dl = cross([lines(13).point2(1);lines(13).point2(2);1],vp_l1);
 line_hor_ul = cross([lines(15).point2(1);lines(15).point2(2);1],vp_l1);
 line_obl_lr = cross([lines(15).point1(1);lines(15).point1(2);1],vp_l2);
 line_obl_ll = cross([lines(13).point1(1);lines(13).point1(2);1],vp_l2);
 
+% normalize them
 line_hor_dl = line_hor_dl./line_hor_dl(3);
 line_hor_ul = line_hor_ul./line_hor_ul(3);
 line_obl_lr = line_obl_lr./line_obl_lr(3);
 line_obl_ll = line_obl_ll./line_obl_ll(3);
 
-% transform lines
+% transform the lines according tp the metric rectification
 l_left = H_r.' \ line_obl_ll;
 l_up = H_r.' \ line_hor_ul;
 l_down = H_r.' \ line_hor_dl;
 l_right = H_r.' \ line_obl_lr;
 
-% upper left point and down left point
+% compute the four points of the reference rectangle
 x_ul_left = cross(l_left,l_up);
 x_dl_left = cross(l_left,l_down);
-
-% upper right point and down right point
 x_ur_left = cross(l_right,l_up);
 x_dr_left = cross(l_down,l_right);
 
-% normalization
+% normalization of the points
 x_ul_left = x_ul_left ./ x_ul_left(3,1); 
 x_dl_left = x_dl_left ./ x_dl_left(3,1);
 x_ur_left = x_ur_left./ x_ur_left(3,1);
 x_dr_left = x_dr_left./ x_dr_left(3,1);
 
-% length of the longside of horizontal face using image measure
-length_longside1 = norm(x_ul_left - x_dl_left,2);
-length_longside2 = norm(x_ur_left - x_dr_left,2);
+% compute the lenght of the 
+length_side1 = norm(x_ul_left - x_dl_left,2);
+length_side2 = norm(x_ur_left - x_dr_left,2);
 
 % do the average
-length_longside_img = (length_longside1 + length_longside2) / 2;
+length_side12_img = (length_side1 + length_side2) / 2;
 
 % measure the length of the short side on the left part (needed for
 % homography estimation
-length_shortside1 = norm(x_ul_left - x_ur_left,2);
-length_shortside2 = norm(x_dl_left - x_dr_left,2);
+length_side3 = norm(x_ul_left - x_ur_left,2);
+length_side4 = norm(x_dl_left - x_dr_left,2);
 
 % do the average
-length_shortside_img = (length_shortside1 + length_shortside2) / 2;
+length_side34_img = (length_side3 + length_side4) / 2;
 
 % calculate aspect ratio, this is the aspect ratio on the real world since
 % now the image is a similarity.
-aspect_ratio_left = length_longside_img/length_shortside_img;
+aspect_ratio_left = length_side12_img/length_side34_img;
 
 
 %% Camera localization
@@ -272,28 +252,28 @@ aspect_ratio_left = length_longside_img/length_shortside_img;
 % into the planar object it is possible to determine i, j and o, so
 % localizing the planar object with reference to the camera and vice versa.
 
-% build up the rectangle of the left face using its real measure
+% build up the reference rectangle of the left face keeping the right
+% proportion between the sides (it has been choosen 200 as measure of one
+% side, because the real measures are not known)
 Np = 200;
 x_dl = [0 0];
 x_ul = [0 Np];
 x_dr = [Np/aspect_ratio_left 0];
 x_ur = [Np/aspect_ratio_left Np];
 
-% transform lines
+% transform lines according to the metric reconstruction
 l_left = H_r.' \ line_obl_ll;
 l_up = H_r.' \ line_hor_ul;
 l_down = H_r.' \ line_hor_dl;
 l_right = H_r.' \ line_obl_lr;
 
-% upper left point and down left point
+% compute the four points of the reference rectangle
 x_ul_left = cross(l_left,l_up);
 x_dl_left = cross(l_left,l_down);
-
-% upper right point and down right point
 x_ur_left = cross(l_right,l_up);
 x_dr_left = cross(l_down,l_right);
 
-% normalization
+% normalization of the points
 x_ul_left = x_ul_left ./ x_ul_left(3,1); 
 x_dl_left = x_dl_left ./ x_dl_left(3,1);
 x_ur_left = x_ur_left./ x_ur_left(3,1);
@@ -308,15 +288,15 @@ h1 = H_omog(:,1);
 h2 = H_omog(:,2);
 h3 = H_omog(:,3);
 
-% normalization factor.
+% normalization factor
 lambda = 1 / norm(K \ h1);
 
-% r1 = K^-1 * h1 normalized
+% computation of the rotation matrix coloumns
 r1 = (K \ h1) * lambda;
 r2 = (K \ h2) * lambda;
 r3 = cross(r1,r2);
 
-% rotation of the world with respect to the camera (R cam -> world)
+% computation of the rotation matrix of the world with respect to the camera 
 % where the world in this case is the left horizontal face
 R = [r1, r2, r3];
 
@@ -325,18 +305,17 @@ R = [r1, r2, r3];
 [U, ~, V] = svd(R);
 R = U * V';
 
-% Compute translation vector. This vector is the position of the plane wrt
-% the reference frame of the camera.
+% Computation of the translation vector, which represents the position 
+% of the plane with respect to the reference frame of the camera
 T = (K \ (lambda * h3));
 
+% computation of the camera rotation
 cameraRotation = R.';
-% since T is expressed in the camera reference frame we want it in the plane
-% reference frame, R.' is the rotation of the camera wrt the plane
+
+% since T is expressed in the camera reference frame computation of the 
+% translation vector in the plane reference frame
 cameraPosition = -R.'*T;
-
-
-
-%% Display orientation and position with referenze to left part of the plane
+%% Display orientation and position of the camera with referenze to the left part of the plane
 
 figure
 plotCamera('Location', cameraPosition, 'Orientation', cameraRotation.', 'Size', 20);
@@ -346,24 +325,16 @@ pcshow([[x_ul; x_dl; x_ur; x_dr], zeros(size([x_ul; x_dl; x_ur; x_dr],1), 1)], .
 xlabel('X')
 ylabel('Y')
 zlabel('Z')
-%% Reconstruction of a vertical facade
-% a point on the left vertical face can be written as [x 0 z w] in the
-% reference frame of the left horizontal face. So the reconstruction matrix
-% from the image to its shape is simply [P_1 | P_3 | P_4]^(-1)
-
-% reconstruction of the left face
-
-P = K * [R,T]; % projection matrix
+%% Reconstruction of the left vertical facade
+%computation of the projection matrix
+P = K * [R,T]; 
+% computation of the reconstruction matrix
 H_vert_l_sr = inv([P(:,1), P(:,3), P(:,4)]);
 R_y = roty(deg2rad(180));
 
 H_vert_l_sr = R_y * H_vert_l_sr;
 
+% application of the reconstruction matrix to the original image 
+% and showing of the result
 out_lv = transform_and_show(H_vert_l_sr, im_rgb, "Shape reconstruction of " + ...
                                         "the left vertical face");
-
-
-
-
-
-

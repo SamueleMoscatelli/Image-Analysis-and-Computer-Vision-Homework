@@ -1,5 +1,6 @@
 function VP = getVp(ls)
-%GETVP Returns the vanishing point common to all lines using LSA
+%GETVP Returns the vanishing point common to all lines using Least Squares
+%Approximation
 %   lines is a matrix 3*n containing all lines having a common direction
 % given lines the vanishing points obeys the law: l_t vp = 0
 % considering the last element of vp =1 => ax + by = -c
